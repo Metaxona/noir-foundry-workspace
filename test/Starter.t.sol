@@ -24,26 +24,58 @@ contract StarterTest is Test {
     }
 
     function test_verifyProof() public {
-        noirHelper.withInput("x", 1).withInput("y", 1);
-        (bytes32[] memory publicInputs, bytes memory proof) = noirHelper.generateProof("test_verifyProof", 2);
+        // starter a and starter b are verifiers for different circuits.
+        // a
+        noirHelper
+            .withInput("x", 1)
+            .withInput("y", 1)
+            .withProjectPath("circuits/a")
+            .withProofOutputPath("circuits/target/");
+        // num of public inputs to circuit is 1.
+        (bytes32[] memory publicInputs, bytes memory proof) = noirHelper.generateProof("test_verifyProof", 1);
         startera.verifyEqual(proof, publicInputs);
+
+        // b
+        noirHelper
+            .withInput("x", 1)
+            .withInput("y", 1)
+            .withProjectPath("circuits/b");
+        // num of public inputs to circuit is 1.
+        (publicInputs, proof) = noirHelper.generateProof("test_verifyProof", 1);
         starterb.verifyEqual(proof, publicInputs);
     }
 
     function test_wrongProof() public {
-        noirHelper.clean();
-        noirHelper.withInput("x", 1).withInput("y", 5);
-        (bytes32[] memory publicInputs, bytes memory proof) = noirHelper.generateProof("test_wrongProof", 2);
+        // a
+        noirHelper
+            .withInput("x", 1)
+            .withInput("y", 5)
+            .withProjectPath("circuits/a")
+            .withProofOutputPath("circuits/target/");
+        
+        // for failed constraints NoirHelper emits `FailedConstraintWithError()`. 
+        vm.expectEmit(true, true, true, true);
+        emit NoirHelper.FailedConstraintWithError();
+        (bytes32[] memory publicInputs, bytes memory proof) = noirHelper.generateProof("test_wrongProof", 1);
+
+        // Somewhat unintuitively, this will always revert with `PUBLIC_INPUT_COUNT_INVALID` because Noir
+        // does not generate invalid proofs. Additionally, `NoirHelper` returns an empty `bytes` string
+        // for proofs and an empty `bytes32[]` for `publicInputs` if any constraints fail. same for b.
         vm.expectRevert();
         startera.verifyEqual(proof, publicInputs);
+
+        // b
+        noirHelper
+            .withInput("x", 1)
+            .withInput("y", 5)
+            .withProjectPath("circuits/b");
+
+        // for failed constraints NoirHelper emits `FailedConstraintWithError()`.
+        vm.expectEmit(true, true, true, true);
+        emit NoirHelper.FailedConstraintWithError();
+        (publicInputs, proof) = noirHelper.generateProof("test_wrongProof", 1);
+
+        vm.expectRevert();
         starterb.verifyEqual(proof, publicInputs);
     }
-
-    // function test_all() public {
-    //     // forge runs tests in parallel which messes with the read/writes to the proof file
-    //     // Run tests in wrapper to force them run sequentially
-    //     verifyProof();
-    //     wrongProof();
-    // }
-
 }
